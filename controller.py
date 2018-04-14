@@ -1,6 +1,24 @@
 ## Go to
 import numpy as np
 import cv2
+import cv2.aruco as aruco
+
+aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
+parameters =  aruco.DetectorParameters_create()
+
+params = np.load("calib.npz")
+camera_matrix = params['mtx']
+dist_coeffs = params['dist']
+
+markerLength = 0.009
+#axis = np.float32([[2,0,0], [0,2,0], [0,0,-2]]).reshape(-1,3)
+
+
+def get_rt(image):
+    corners, ids, rejectedImgPoints = aruco.detectMarkers(image, aruco_dict, parameters=parameters)
+    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, markerLength, camera_matrix, dist_coeffs) # posture estimation from a single marker
+    return rvec, tvec, corners
+
 
 class PIctrl:
     def __init__(self, kp = 5, ki = 0.01, kd=0.01, integratorb=(-200, 200), actual=(0,0,0)):
@@ -19,20 +37,12 @@ class PIctrl:
         self.e_k_1 = 0
     
     def update(self, dt):
-        #theta = self.actual[2]
-        #self.rotation = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        #self.rotation = np.reshape(self.rotation, (2,2))
         v = 200 #calc_vw(self.robot.right_wheel_speed.speed_mmps, self.robot.left_wheel_speed.speed_mmps)
         diff = self.ref_point - self.actual
         theta_g = np.arctan2(diff[1][0],diff[0][0])
         e_k = theta_g - self.actual[2]
         e_k = np.arctan2(np.sin(e_k), np.cos(e_k))
         e_P = e_k
-        #self.error = e_k
-
-        #self.error = np.dot(self.rotation, diff[:2])
-        #self.error = diff[:2]
-        #self.error = np.linalg.norm(self.error)
         ## PID start
         e_P = e_k
         e_I = self.E_k + e_k*dt
@@ -40,49 +50,15 @@ class PIctrl:
         w = self.kp * e_P + self.ki*e_I + self.kd*e_D
         self.E_k = e_I
         self.e_k_1 = e_k
-        
-        #self.p = self.kp * self.error
-        #self.d = self.kd * (self.error -self.derivator)
-        #self.derivator = self.error
-        #self.integrator = self.integrator + self.error
-        #self.integrator = self.bound_values(self.integrator)
-        #self.i = self.ki * self.integrator
-        #self.pid = self.p + self.d + self.i
-        #v = self.kp * np.linalg.norm(diff)
-        #v = np.linalg.norm(self.pid) * self.kd
-        #v = self.bound_values(self.pid)
-        
-        #w = np.arctan2(diff[1][0], diff[0][0])
-        #w = self.pid
-        #print (v, w)
         return (v, w, e_P)
-
-    def update3(self):
-        diff = self.ref_point - self.actual
-        self.error = diff[:2] #/ diff[2]
-        v = self.kp * np.linalg.norm(diff)
-        w = np.arctan2(self.error[1][0], self.error[0][0])
-        return (v, w, self.error)        
-
-    #def update(self):
-
-
-    def update9(self):
-        C = np.array([[np.cos(self.ref_point[2] - self.actual[2])], [1]])
-        print ('ref,actual',self.ref_point, self.actual)
-        u1 = -self.kp * (self.ref_point[0]-self.actual[0])
-        t1 = self.kp * self.ref_dyna[0] * np.sinc(self.ref_point[2]-self.actual[2])
-        t2 = self.ref_point[1]-self.actual[1]
-        t3 = -self.kd * (self.ref_point[2]-self.actual[2]) 
-        u2 = t1*t2+t3
-        ctrl = C * self.ref_dyna - np.array([[u1[0]],[u2[0]]])
-        
-        theta = self.actual[2]
-        self.rotation = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        diff = self.ref_point - self.actual
-        error = np.linalg.norm(diff)
-        return ctrl
     
+    def update_theta(self, dtheta):
+        v = 200
+        e_k = dtheta - self.actual[2]
+        e_k = np.arctan2(np.sin(e_k), np.cos(e_k))
+        w = self.kp * e_k
+        return (v, w, e_k)
+
     def pos_update(self, pose):
         self.actual = pose
 
@@ -90,11 +66,6 @@ class PIctrl:
         val[val >= self.ibound[1]] = self.ibound[1]
         val[val < self.ibound[0]] = self.ibound[0]        
         return val
-        #if val < self.ibound[0]:
-        #    val = self.ibound[0]
-        #elif val >= self.ibound[1]:
-        #    val = self.ibound[1]
-        #return val
 
 def to_nppose(pos, angle):
     object_pos = np.array([[pos[0]],[pos[1]],[angle]])

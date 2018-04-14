@@ -1,11 +1,11 @@
 import cozmo
 import cv2
-#import cv2.aruco as aruco
+import cv2.aruco as aruco
 import numpy as np
 import time
 from cozmo.util import degrees, radians
 import asyncio
-from controller import PIctrl, to_nppose, calc_wheel_velo, calc_vw, get_direction, plan_virtualpoint, visualize_path, add_obj_path
+from controller import PIctrl, to_nppose, calc_wheel_velo, calc_vw, get_direction, plan_virtualpoint, visualize_path, add_obj_path, get_rt
 from cozmo.objects import CustomObject, CustomObjectMarkers, CustomObjectTypes
 
 
@@ -59,7 +59,25 @@ def lookAroundBehavior(robot):
     return transport, goal
     #return cube
 
-def gotobehavior(robot, loc, path=None, th=35):
+def gotoangle(robot, angle, path=None):
+    ctrl = PIctrl()
+    while True:
+        rangle = robot.pose.rotation.angle_z.radians            
+        robot_pos = to_nppose(robot.pose.position.x_y_z, rangle)           
+
+        img = add_obj_path(path, robot_pos)
+        cv2.imshow('path', img)#[:,:,::-1])
+        ctrl.pos_update(robot_pos)
+        val = ctrl.update_theta(angle)
+        vr, vl = calc_wheel_velo(val)
+        robot.drive_wheels(vl, vr)
+        print ('angle error', val[2])
+        if np.linalg.norm(val[2]) < 0.1:
+            break
+        if cv2.waitKey(10) & 0xFF == ord('q'):
+            break            
+
+def gotobehavior(robot, loc, path=None, th=35, tracking=False):
     ctrl = PIctrl()
     #Set the reference point i.e object position
     ctrl.ref_point = loc
@@ -90,7 +108,13 @@ def gotobehavior(robot, loc, path=None, th=35):
         robot.drive_wheels(vl, vr)
         #print('error', val[2])
         #img = img[::-1,:,:]
-        cv2.imshow('path',img)#[:,:,::-1])
+        cv2.imshow('path', img)#[:,:,::-1])
+        if tracking:
+            image = robot.world.latest_image
+            gray = np.array(image.raw_image.convert("L"))
+            #rvec, tvec, corners = get_rt(gray)
+            #gray = aruco.drawDetectedMarkers(gray, corners)
+            cv2.imshow('aruco', gray)
         err = robot_pos - loc
         if np.linalg.norm(err[:2]) < th:
             break
@@ -159,7 +183,12 @@ def cozmo_program(robot: cozmo.robot.Robot):
     gotobehavior(robot, vp, path=img, th=10)
     print ('gotobehavior for vp complte')
 
-    gotobehavior(robot, object_pos, path=img, th=10)
+    ## Change the ange to 90
+
+    gotoangle(robot, -np.pi/2, path=img)
+    print ('gotoangle behavior completed')
+
+    gotobehavior(robot, object_pos, path=img, th=20, tracking=True)
     print ('gotobehavior for object complte')    
     return
     ##goal pose
