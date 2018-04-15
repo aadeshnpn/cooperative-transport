@@ -1,23 +1,37 @@
 ## Go to
 import numpy as np
 import cv2
-import cv2.aruco as aruco
+#import cv2.aruco as aruco
 
-aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
-parameters =  aruco.DetectorParameters_create()
+#aruco_dict = aruco.Dictionary_get(aruco.DICT_4X4_50)
+#parameters =  aruco.DetectorParameters_create()
 
-params = np.load("calib.npz")
-camera_matrix = params['mtx']
-dist_coeffs = params['dist']
+#params = np.load("calib.npz")
+#camera_matrix = params['mtx']
+#dist_coeffs = params['dist']
 
-markerLength = 0.009
+#markerLength = 0.009
 #axis = np.float32([[2,0,0], [0,2,0], [0,0,-2]]).reshape(-1,3)
 
+lk_params = dict(winSize  = (21, 21),
+                #maxLevel = 3,
+                 criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
 
-def get_rt(image):
-    corners, ids, rejectedImgPoints = aruco.detectMarkers(image, aruco_dict, parameters=parameters)
-    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, markerLength, camera_matrix, dist_coeffs) # posture estimation from a single marker
-    return rvec, tvec, corners
+def featureTracking(image_ref, image_cur, px_ref):
+    kp2, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, px_ref, None, **lk_params)  #shape: [k,2] [k,1] [k,1]
+
+    st = st.reshape(st.shape[0])
+    kp1 = px_ref[st == 1]
+    kp2 = kp2[st == 1]
+
+    u = (kp2 - kp1)
+    vel = np.linalg.norm(u)
+    return kp1, kp2, vel
+
+##def get_rt(image):
+#    corners, ids, rejectedImgPoints = aruco.detectMarkers(image, aruco_dict, parameters=parameters)
+#    rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, markerLength, camera_matrix, dist_coeffs) # posture estimation from a single marker
+#    return rvec, tvec, corners
 
 
 class PIctrl:
@@ -115,20 +129,20 @@ def get_mc(p1, p2):
 
 def plan_virtualpoint(goal, item, robot):
     m, c = get_mc(goal, item)
-    vy = item[1] + 400
+    vy = item[1] + 200
     vx = ( vy - c ) / m
     #vx = robot[0] + 400
     #vy = m*vx + c
     #vx = goal[0] - 200
     #vy = goal[1] - 200
-    vp = (vx+500, vy)
+    vp = (vx+200, vy)
     return vp
 
 def cnvtcord(p):
-    return (p[0][0]+500, p[1][0]+500)
+    return (p[0][0]+200, p[1][0]+200)
 
 def visualize_path(g,i,v,r):
-    img = np.zeros((1000, 1000, 3))
+    img = np.zeros((1000, 1900, 3))
     
     #goal = cnvtcord(315,-62)
     #item = cnvtcord(213,142)

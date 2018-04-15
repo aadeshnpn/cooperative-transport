@@ -5,10 +5,14 @@ import numpy as np
 import time
 from cozmo.util import degrees, radians
 import asyncio
-from controller import PIctrl, to_nppose, calc_wheel_velo, calc_vw, get_direction, plan_virtualpoint, visualize_path, add_obj_path, get_rt
+from controller import (PIctrl, to_nppose, calc_wheel_velo, calc_vw, 
+    get_direction, plan_virtualpoint, visualize_path, 
+    add_obj_path, featureTracking)
+
 from cozmo.objects import CustomObject, CustomObjectMarkers, CustomObjectTypes
 
-
+#np.array(image.raw_image.convert("L"))
+kMinNumFeature = 20
 goal = None
 transport = None
 
@@ -93,7 +97,9 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
     ctrl.ref_point = loc
     #robot_pos, rangle = get_pose(robot)
     i = 0
-    t0 = time.time()    
+    t0 = time.time() 
+    runKLT = False   
+    detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
     while True:
         i += 1
         ## Calc robot current pose
@@ -120,11 +126,25 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
         #img = img[::-1,:,:]
         cv2.imshow('path', img)#[:,:,::-1])
         if tracking:
-            image = robot.world.latest_image
-            gray = np.array(image.raw_image.convert("L"))
+            object_seen = robot.world.visible_object_count()
+            if object_seen > 0 and runKLT == False:
+                old_image = robot.world.latest_image
+                old_image = np.array(old_image.raw_image.convert("L"))
+                p0 = detector.detect(old_image)
+                p0 = np.array([x.pt for x in p0], dtype=np.float32)
+                runKLT = True
+            if runKLT == True:
+                new_image = robot.world.latest_image
+                new_image = np.array(new_image.raw_image.convert("L"))
+                p0,p1,vel = featureTracking(old_image, new_image, p0)
+                p0 = p1
+                old_image = new_image
+                print (i, 'KLT vel', vel)
+            #image = robot.world.latest_image
+            #gray = np.array(image.raw_image.convert("L"))
             #rvec, tvec, corners = get_rt(gray)
             #gray = aruco.drawDetectedMarkers(gray, corners)
-            cv2.imshow('aruco', gray)
+            #cv2.imshow('tracking', gray)
         err = robot_pos - loc
         if np.linalg.norm(err[:2]) < th:
             break
