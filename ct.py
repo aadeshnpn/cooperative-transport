@@ -40,12 +40,19 @@ def custom_objects(robot):
                                               CustomObjectMarkers.Triangles5,
                                               44,
                                               30, 30, True)
-
+    # Defind the geometical attribute of the objec ot interest                                              
+    wall_obj = robot.world.define_custom_wall(CustomObjectTypes.CustomType02,
+                                              CustomObjectMarkers.Hexagons5,
+                                              160, 125,
+                                              105, 100, True)                                              
+    """
     # Defined the geometrical attribute of the object of interest (oject to transport)
+    # This dimension was for a android block
     wall_obj = robot.world.define_custom_wall(CustomObjectTypes.CustomType02,
                                               CustomObjectMarkers.Hexagons5,
                                               150, 120,
                                               70, 70, True)
+    """
 
     if (goal_obj is not None) and (wall_obj is not None):
         print ("Goal obect and object to transport defined properly")

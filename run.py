@@ -20,13 +20,23 @@ def custom_objects(robot):
                                               44,
                                               30, 30, True)
 
+    box_obj = robot.world.define_custom_box(CustomObjectTypes.CustomType03,
+                                              CustomObjectMarkers.Hexagons5,
+                                              CustomObjectMarkers.Diamonds5,                                           
+                                              CustomObjectMarkers.Hexagons4,                                              
+                                              CustomObjectMarkers.Hexagons3,
+                                              CustomObjectMarkers.Circles5,                                              
+                                              CustomObjectMarkers.Triangles4,
+                                              125, 160,105,
+                                              100,100, True) 
+    """                                              
     # Defined the geometrical attribute of the object of interest (oject to transport)
     wall_obj = robot.world.define_custom_wall(CustomObjectTypes.CustomType02,
                                               CustomObjectMarkers.Hexagons5,
                                               150, 120,
                                               70, 70, True)
-
-    if (goal_obj is not None) and (wall_obj is not None):
+    """
+    if (goal_obj is not None) and (box_obj is not None):
         print ("Goal obect and object to transport defined properly")
 
 
@@ -42,8 +52,8 @@ def lookAroundBehavior(robot):
         world_objects = robot.world.wait_until_observe_num_objects(2, object_type=CustomObject, timeout=30, include_existing=False)
         global goal, transport
         for item in world_objects:
-            area = item.x_size_mm * item.y_size_mm * item.z_size_mm
-            if area == 180000:
+            area = item.x_size_mm * item.y_size_mm * item.z_size_mm #180000
+            if area == 2100000:
                 transport = item
             else:
                 goal = item

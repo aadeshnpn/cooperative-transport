@@ -37,7 +37,7 @@ class PIctrl:
         self.e_k_1 = 0
     
     def update(self, dt):
-        v = 200 #calc_vw(self.robot.right_wheel_speed.speed_mmps, self.robot.left_wheel_speed.speed_mmps)
+        v = 300 #calc_vw(self.robot.right_wheel_speed.speed_mmps, self.robot.left_wheel_speed.speed_mmps)
         diff = self.ref_point - self.actual
         theta_g = np.arctan2(diff[1][0],diff[0][0])
         e_k = theta_g - self.actual[2]
@@ -115,13 +115,13 @@ def get_mc(p1, p2):
 
 def plan_virtualpoint(goal, item, robot):
     m, c = get_mc(goal, item)
-    vy = item[1] + 300
+    vy = item[1] + 400
     vx = ( vy - c ) / m
     #vx = robot[0] + 400
     #vy = m*vx + c
     #vx = goal[0] - 200
     #vy = goal[1] - 200
-    vp = (vx+400, vy)
+    vp = (vx+500, vy)
     return vp
 
 def cnvtcord(p):
