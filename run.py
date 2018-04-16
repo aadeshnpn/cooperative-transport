@@ -98,8 +98,8 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
     #robot_pos, rangle = get_pose(robot)
     i = 0
     t0 = time.time() 
-    #runKLT = False   
-    #detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+    runKLT = False   
+    detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
     while True:
         i += 1
         ## Calc robot current pose
@@ -124,12 +124,12 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
         if path is not None:
             img = add_obj_path(path, robot_pos)        
             cv2.imshow('path', img)#[:,:,::-1])
-        #if tracking:
+        if tracking:
         #    world_objects = robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)
         #    object_pos, cangle = get_pose(transport)            
-        """
-            object_seen = robot.world.visible_object_count()
-            if object_seen > 0 and runKLT == False:
+        #
+        #    object_seen = robot.world.visible_object_count()
+            if runKLT == False:
                 old_image = robot.world.latest_image
                 old_image = np.array(old_image.raw_image.convert("L"))
                 p0 = detector.detect(old_image)
@@ -139,10 +139,13 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
                 new_image = robot.world.latest_image
                 new_image = np.array(new_image.raw_image.convert("L"))
                 p0,p1,vel = featureTracking(old_image, new_image, p0)
-                p0 = p1
-                old_image = new_image
-                print (i, 'KLT vel', vel)
-        """    
+                if p0 is not None:
+                    p0 = p1
+                    old_image = new_image
+                    print (i, 'KLT vel', vel)
+                else:
+                    break
+        #"""    
 
             #image = robot.world.latest_image
             #gray = np.array(image.raw_image.convert("L"))
@@ -171,7 +174,7 @@ def secondphase(robot, path):
         transport = robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)
         look_around.stop()        
         object_pos, cangle = get_pose(transport[0])
-        gotobehavior(robot, object_pos, path, th=60)
+        gotobehavior(robot, object_pos, path, th=60, tracking=True)
     except asyncio.TimeoutError:
         print ("Couldn't relocate the transport oject. Stopping")
         pass
@@ -250,6 +253,12 @@ def cozmo_program(robot: cozmo.robot.Robot):
     print ('Second phase starting')
     secondphase(robot, path=img)
     print ('second phase end')
+    #return
+
+    #Last phase of pushing
+    gotobehavior(robot, goal_pos, path=img, th=50)
+    print ("object moved to goal")
+    robot.stop_all_motors()    
     return
     ##goal pose
     # Get the direction to the object
@@ -264,7 +273,7 @@ def cozmo_program(robot: cozmo.robot.Robot):
     print ('direction changed towards goal')
     print ('gotobehavior for goal started')    
     gotobehavior(robot, goal_pos,th=55)
-    robot.stop_all_motors()    
+
 
 
 def main():
