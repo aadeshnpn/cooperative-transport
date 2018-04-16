@@ -19,14 +19,16 @@ lk_params = dict(winSize  = (21, 21),
 
 def featureTracking(image_ref, image_cur, px_ref):
     kp2, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, px_ref, None, **lk_params)  #shape: [k,2] [k,1] [k,1]
+    try:
+        st = st.reshape(st.shape[0])
+        kp1 = px_ref[st == 1]
+        kp2 = kp2[st == 1]
 
-    st = st.reshape(st.shape[0])
-    kp1 = px_ref[st == 1]
-    kp2 = kp2[st == 1]
-
-    u = (kp2 - kp1)
-    vel = np.linalg.norm(u)
-    return kp1, kp2, vel
+        u = (kp2 - kp1)
+        vel = np.linalg.norm(u)
+        return kp1, kp2, vel
+    except AttributeError:
+        return None, None, None
 
 ##def get_rt(image):
 #    corners, ids, rejectedImgPoints = aruco.detectMarkers(image, aruco_dict, parameters=parameters)

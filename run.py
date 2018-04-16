@@ -98,16 +98,13 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
     #robot_pos, rangle = get_pose(robot)
     i = 0
     t0 = time.time() 
-    runKLT = False   
-    detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+    #runKLT = False   
+    #detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
     while True:
         i += 1
         ## Calc robot current pose
         rangle = robot.pose.rotation.angle_z.radians            
         robot_pos = to_nppose(robot.pose.position.x_y_z, rangle)   
-        
-        img = add_obj_path(path, robot_pos)
-
         ctrl.pos_update(robot_pos)        
         ctrl.robot = robot
         ## Update the refrence object for the controller
@@ -124,8 +121,13 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
         robot.drive_wheels(vl, vr)
         #print('error', val[2])
         #img = img[::-1,:,:]
-        cv2.imshow('path', img)#[:,:,::-1])
-        if tracking:
+        if path is not None:
+            img = add_obj_path(path, robot_pos)        
+            cv2.imshow('path', img)#[:,:,::-1])
+        #if tracking:
+        #    world_objects = robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)
+        #    object_pos, cangle = get_pose(transport)            
+        """
             object_seen = robot.world.visible_object_count()
             if object_seen > 0 and runKLT == False:
                 old_image = robot.world.latest_image
@@ -140,12 +142,15 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
                 p0 = p1
                 old_image = new_image
                 print (i, 'KLT vel', vel)
+        """    
+
             #image = robot.world.latest_image
             #gray = np.array(image.raw_image.convert("L"))
             #rvec, tvec, corners = get_rt(gray)
             #gray = aruco.drawDetectedMarkers(gray, corners)
             #cv2.imshow('tracking', gray)
         err = robot_pos - loc
+        print(i, err)
         if np.linalg.norm(err[:2]) < th:
             break
         #if np.linalg.norm(val[2]) < th:
@@ -158,6 +163,22 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
 def alignPose(robot, loc, timeout=100):
     pass
 
+
+def secondphase(robot, path):
+    custom_objects(robot)
+    look_around = robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
+    try:    
+        transport = robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)
+        look_around.stop()        
+        object_pos, cangle = get_pose(transport[0])
+        gotobehavior(robot, object_pos, path, th=60)
+    except asyncio.TimeoutError:
+        print ("Couldn't relocate the transport oject. Stopping")
+        pass
+    finally:
+        look_around.stop()
+
+
 def get_pose(objects):
     angle = objects.pose.rotation.angle_z.radians
     pose = to_nppose(objects.pose.position.x_y_z, angle)
@@ -166,11 +187,9 @@ def get_pose(objects):
 def cozmo_program(robot: cozmo.robot.Robot):
     robot.camera.image_stream_enabled = True
     i = 0
+    
     transport, goal = lookAroundBehavior(robot) 
     print (transport,robot.pose,goal) 
-
-    #if cube:
-    #    cube.set_lights(cozmo.lights.green_light.flash())
 
     ##Robot pose
     robot_pos, rangle = get_pose(robot)
@@ -186,6 +205,7 @@ def cozmo_program(robot: cozmo.robot.Robot):
     vp = plan_virtualpoint(goal_pos[:2], object_pos[:2],robot_pos[:2])
     vp = np.array([[vp[0]],[vp[1]],[0]])
 
+    robot.world.delete_all_custom_objects()
     ##Controller initialization
     ctrl = PIctrl()
     #ctrl.robot = robot
@@ -210,6 +230,8 @@ def cozmo_program(robot: cozmo.robot.Robot):
     #ctrl.pos_update(robot_pos)
     #Update the controller i.e get new values of v and w
     #ctrl.update()
+    
+    
     gotobehavior(robot, vp, path=img, th=10)
     print ('gotobehavior for vp complte')
 
@@ -217,9 +239,17 @@ def cozmo_program(robot: cozmo.robot.Robot):
 
     gotoangle(robot, -np.pi/2, path=img)
     print ('gotoangle behavior completed')
+    robot.stop_all_motors()
 
-    gotobehavior(robot, object_pos, path=img, th=20, tracking=True)
-    print ('gotobehavior for object complte')    
+    gotoangle#robot.turn_in_place(radians(object_pos[2]))
+    #print ('Poiting towards the object')
+
+    #gotobehavior(robot, object_pos, path=img, th=20, tracking=True)
+    #print ('gotobehavior for object complte')    
+    #return
+    print ('Second phase starting')
+    secondphase(robot, path=img)
+    print ('second phase end')
     return
     ##goal pose
     # Get the direction to the object
