@@ -5,6 +5,7 @@ import numpy as np
 import time
 from cozmo.util import degrees, radians
 import asyncio
+import sys
 from controller import (PIctrl, to_nppose, calc_wheel_velo, calc_vw, 
     get_direction, plan_virtualpoint, visualize_path, 
     add_obj_path, featureTracking)
@@ -17,14 +18,14 @@ goal = None
 transport = None
 
 ## Function related to CV
-def custom_objects(robot):
+async def custom_objects(robot):
     # Defined the geometical attribute of the goal object
-    goal_obj = robot.world.define_custom_cube(CustomObjectTypes.CustomType01,
+    goal_obj = await robot.world.define_custom_cube(CustomObjectTypes.CustomType01,
                                               CustomObjectMarkers.Triangles5,
                                               44,
                                               30, 30, True)
 
-    box_obj = robot.world.define_custom_box(CustomObjectTypes.CustomType03,
+    box_obj = await robot.world.define_custom_box(CustomObjectTypes.CustomType03,
                                               CustomObjectMarkers.Hexagons5,
                                               CustomObjectMarkers.Diamonds5,                                           
                                               CustomObjectMarkers.Hexagons4,                                              
@@ -44,16 +45,16 @@ def custom_objects(robot):
         print ("Goal obect and object to transport defined properly")
 
 
-def lookAroundBehavior(robot):
+async def lookAroundBehavior(robot):
     look_around = robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
-    custom_objects(robot)
+    await custom_objects(robot)
     cube = None
     try:
         # This is for cube
         #cube = robot.world.wait_for_observed_light_cube(timeout=30)
 
         # This for for custom object
-        world_objects = robot.world.wait_until_observe_num_objects(2, object_type=CustomObject, timeout=30, include_existing=False)
+        world_objects = await robot.world.wait_until_observe_num_objects(2, object_type=CustomObject, timeout=30, include_existing=False)
         global goal, transport
         for item in world_objects:
             area = item.x_size_mm * item.y_size_mm * item.z_size_mm #180000
@@ -73,7 +74,7 @@ def lookAroundBehavior(robot):
     return transport, goal
     #return cube
 
-def gotoangle(robot, angle, path=None):
+async def gotoangle(robot, angle, path=None):
     ctrl = PIctrl()
     while True:
         rangle = robot.pose.rotation.angle_z.radians            
@@ -84,14 +85,14 @@ def gotoangle(robot, angle, path=None):
         ctrl.pos_update(robot_pos)
         val = ctrl.update_theta(angle)
         vr, vl = calc_wheel_velo(val)
-        robot.drive_wheels(vl, vr)
+        await robot.drive_wheels(vl, vr)
         print ('angle error', val[2])
         if np.linalg.norm(val[2]) < 0.1:
             break
         if cv2.waitKey(10) & 0xFF == ord('q'):
             break            
 
-def gotobehavior(robot, loc, path=None, th=35, tracking=False):
+async def gotobehavior(robot, loc, path=None, th=35, tracking=False):
     ctrl = PIctrl()
     #Set the reference point i.e object position
     ctrl.ref_point = loc
@@ -117,7 +118,7 @@ def gotobehavior(robot, loc, path=None, th=35, tracking=False):
         ## Get get while velocityies from linear and angular velocity
         vr, vl = calc_wheel_velo(val)
         ## Send the velocity commands to the robot
-        robot.drive_wheels(vl, vr)
+        await robot.drive_wheels(vl, vr)
         if path is not None:
             img = add_obj_path(path, robot_pos)        
             cv2.imshow('path', img)#[:,:,::-1])
@@ -169,11 +170,11 @@ def get_pose(objects):
     pose = to_nppose(objects.pose.position.x_y_z, angle)
     return (pose, angle)
 
-def cozmo_program(robot: cozmo.robot.Robot):
+async def cozmo_program(robot: cozmo.robot.Robot):
     robot.camera.image_stream_enabled = True
     i = 0
     
-    transport, goal = lookAroundBehavior(robot) 
+    transport, goal = await lookAroundBehavior(robot) 
     print (transport,robot.pose,goal) 
 
     ##Robot pose
@@ -190,7 +191,7 @@ def cozmo_program(robot: cozmo.robot.Robot):
     vp = plan_virtualpoint(goal_pos[:2], object_pos[:2],robot_pos[:2])
     vp = np.array([[vp[0]],[vp[1]],[0]])
 
-    robot.world.delete_all_custom_objects()
+    await robot.world.delete_all_custom_objects()
     ##Controller initialization
 
     ctrl = PIctrl()
@@ -200,12 +201,12 @@ def cozmo_program(robot: cozmo.robot.Robot):
     img = visualize_path(goal_pos, object_pos, vp, robot_pos)
     cv2.imwrite('path.jpg',img)
     
-    gotobehavior(robot, vp, path=img, th=10)
+    await gotobehavior(robot, vp, path=img, th=10)
     print ('gotobehavior for vp complte')
 
     ## Change the ange to 90
 
-    gotoangle(robot, -np.pi/2, path=img)
+    await gotoangle(robot, -np.pi/2, path=img)
     print ('gotoangle behavior completed')
     return
 
@@ -224,13 +225,13 @@ def cozmo_program(robot: cozmo.robot.Robot):
 #    robot = await sdk_conn.wait_for_robot()    
 #    cozmo.run_program(cozmo_program(robot), use_viewer=True, force_viewer_on_top=True)
 
-def multi_agent(robot):
-    #cozmo.run_program(cozmo_program, use_viewer=True, force_viewer_on_top=True)
-    cozmo_program(robot)
+async def multi_agent(robot):
+    #await cozmo.run_program(cozmo_program(robot), use_viewer=True, force_viewer_on_top=True)
+    await cozmo_program(robot)
 
-def main():
-    cozmo.run_program(cozmo_program, use_viewer=True, force_viewer_on_top=True)
+#def main():
+#    cozmo.run_program(cozmo_program, use_viewer=True, force_viewer_on_top=True)
     #cozmo.run_program(cozmo_program)
 
-if __name__ == '__main__':
-    main()
+#if __name__ == '__main__':
+#    main()
