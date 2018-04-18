@@ -180,6 +180,7 @@ class CoopsTrans:
             await self.robot.drive_wheels(vl, vr)
             await asyncio.sleep(0.1)
             await self.avoid_obstacles()
+            #for 
             #await robot.
             if path is not None:
                 img = add_obj_path(path, robot_pos)        

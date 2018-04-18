@@ -30,7 +30,7 @@ from run import CoopsTrans
 from controller import visualize_objects, compute_features
 import cv2
 
-multi_agent = False
+multi_agent = True
 
 async def test_goal(robot):
     task = CoopsTrans(robot)
@@ -128,6 +128,7 @@ if __name__ == '__main__':
     # Run two independent coroutines concurrently, one on each connection
     task1 = asyncio.ensure_future(turn_left(conn1), loop=loop)
     if multi_agent:
+        #sleep(50)
         task2 = asyncio.ensure_future(turn_left(conn2), loop=loop)
         ret = loop.run_until_complete(asyncio.gather(task1, task2))
         print (ret)
