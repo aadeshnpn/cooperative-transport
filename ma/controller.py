@@ -24,11 +24,12 @@ def featureTracking(image_ref, image_cur, px_ref):
         kp1 = px_ref[st == 1]
         kp2 = kp2[st == 1]
 
-        u = (kp2 - kp1)
-        vel = np.linalg.norm(u)
-        return kp1, kp2, vel
+        #u = (kp2 - kp1)
+        #vel = np.linalg.norm(u)
+        #return kp1, kp2, vel
+        return kp1, kp2
     except AttributeError:
-        return None, None, None
+        return None, None
 
 ##def get_rt(image):
 #    corners, ids, rejectedImgPoints = aruco.detectMarkers(image, aruco_dict, parameters=parameters)
@@ -171,6 +172,41 @@ def visualize_path(g,i,v,r):
     #    cv2.imshow("flip", flip[:,:,::-1])
     #    if cv2.waitKey(10) & 0xFF == ord('q'):
     #        exit()
+
+def convertc(p):
+    x = int(p[0]) + 400
+    y = int(p[1]) + 400
+    return (x,y)
+
+def visualize_objects(r1,r2,goal):
+    r1 = convertc(r1)
+    r2 = convertc(r2)    
+    goal = convertc(goal)
+
+    img = np.zeros((1000, 1900, 3))
+    cv2.circle(img, r1,10,(255,255,255),4) #white
+    cv2.circle(img, r2,10,(0,0,255),4) #blue
+    cv2.circle(img, goal,10,(123,0,123),4) #purple
+    #cv2.circle(img, vp,10,(0,123,123),4) #light blue
+    return img
+
+def compute_features(box, img):
+    x1,y1 = int(box.left_x), int(box.bottom_y)
+    x2,y2 = int(box.right_x), int(box.top_y)
+    w,h= int(box.width), int(box.height)    
+    cv2.rectangle(img,(x1,y1),(x2,y2),(255,255,0),5)
+
+    mask_image = img.copy()
+    mask_image[:,:] = 255
+    #start_point = (x1, y1)
+    #end_point = (x2, y2)
+    
+    mask_image[y2:y2+h, x1:x1+w] = img[y2:y2+h, x1:x1+w]
+    detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+    p0 = detector.detect(mask_image)
+    p0 = np.array([x.pt for x in p0], dtype=np.float32)
+    return p0, mask_image
+    #kpimg = cv2.drawKeypoints(mask_image, p0, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)    
 
 def add_obj_path(img, p1):
     p1 = p1.astype(np.int)        

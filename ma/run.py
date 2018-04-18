@@ -8,7 +8,7 @@ import asyncio
 import sys
 from controller import (PIctrl, to_nppose, calc_wheel_velo, calc_vw, 
     get_direction, plan_virtualpoint, visualize_path, 
-    add_obj_path, featureTracking)
+    add_obj_path, featureTracking, compute_features)
 
 from cozmo.objects import CustomObject, CustomObjectMarkers, CustomObjectTypes
 
@@ -22,7 +22,8 @@ class CoopsTrans:
         self.robot = robot
         self.rand = np.random.random()*100
         self.cvviewname = 'path'+str(self.rand)
-
+        self.timage0 = None
+        self.gimage0 = None
     ## Function related to CV
     async def custom_objects(self):
         # Defined the geometical attribute of the goal object
@@ -51,30 +52,73 @@ class CoopsTrans:
             print ("Goal obect and object to transport defined properly")
 
     async def fixed_goal_object(self,x,y,z):
-        fixed_goal = await self.robot.world.create_custom_fixed_object(cozmo.util.Pose(x,y,z), 10,10,10,relative_to_robot=False,use_robot_origin=True)
+        fixed_goal = await self.robot.world.create_custom_fixed_object(cozmo.util.Pose(x,y,z,angle_z=radians(0)), 10,10,10,relative_to_robot=False,use_robot_origin=True)
         if fixed_goal is not None:
             print ("Fixed goal object infron of the object created")
+            return fixed_goal
+
+
+    async def avoid_obstacles(self):
+        i = 0
+        while (len(self.tp) > 5 or len(self.gp) > 5):
+            curr_img = self.robot.world.latest_image
+            curr_img = np.array(curr_img.raw_image.convert("L"))        
+            self.flow(self.tp, self.gp, curr_img)
+            print (len(self.tp), len(self.gp))
+            await asyncio.sleep(0.1)
+            cv2.imshow('track', curr_img)
+            cv2.waitKey(10)
+            if i >=20:
+                break
+            await self.robot.drive_wheels(-5,5)
+        
+
+    def flow(self, tp, gp, curr_img):
+        _, tp1 = featureTracking(self.timage0, curr_img, tp)
+        _, tg1 = featureTracking(self.gimage0, curr_img, gp)
+        if tp1 is not None:
+            if len(tp1) > 2:
+                self.timage0 = curr_img
+                self.tp = tp1
+
+        if tg1 is not None:
+            if len(tg1) > 2:
+                self.gimage0 = curr_img
+                self.gp = tg1
+        #return tp, gp
 
     async def lookAroundBehavior(self):
         look_around = self.robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
-        await self.custom_objects()
+
         cube = None
         goal,transport = None, None
+        t_points, g_points = None, None
         try:
             # This is for cube
             #cube = robot.world.wait_for_observed_light_cube(timeout=30)
 
             # This for for custom object
-            world_objects = await self.robot.world.wait_until_observe_num_objects(2, object_type=CustomObject, timeout=40, include_existing=False)
+            world_objects = await self.robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=40, include_existing=False)
             #global goal, transport
             for item in world_objects:
                 #print(dir(item))
-                print (item.last_observed_image_box)
+                #print (item.last_observed_image_box)
                 area = item.x_size_mm * item.y_size_mm * item.z_size_mm #180000
                 if area == 2100000:
                     transport = item
+                    box = transport.last_observed_image_box
+                    img = self.robot.world.latest_image
+                    img = np.array(img.raw_image.convert("L"))
+                    t_points,_ = compute_features(box, img)
+                    self.timage0 = img
                 else:
                     goal = item
+                    goal = item
+                    box = goal.last_observed_image_box
+                    img = self.robot.world.latest_image
+                    img = np.array(img.raw_image.convert("L"))
+                    g_points,_ = compute_features(box, img)
+                    self.gimage0 = img
 
         except asyncio.TimeoutError:
             print ("Didn't find interesting  object :(")
@@ -84,7 +128,7 @@ class CoopsTrans:
 
         look_around.stop()
         #return goal #, transport
-        return transport, goal
+        return transport, goal, t_points, g_points
         #return cube
 
     async def gotoangle(self, angle, path=None):
@@ -114,7 +158,7 @@ class CoopsTrans:
         i = 0
         t0 = time.time() 
         runKLT = False   
-        detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+        #detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
         while True:
             i += 1
             ## Calc robot current pose
@@ -135,30 +179,33 @@ class CoopsTrans:
             ## Send the velocity commands to the robot
             await self.robot.drive_wheels(vl, vr)
             await asyncio.sleep(0.1)
+            await self.avoid_obstacles()
             #await robot.
             if path is not None:
                 img = add_obj_path(path, robot_pos)        
                 cv2.imshow(self.cvviewname, img)#[:,:,::-1])
                 old_image = self.robot.world.latest_image
                 old_image = np.array(old_image.raw_image.convert("L"))
-                #cv2.imshow('old',old_image)
+                #cv2.imshow('old',old_image)\
+            """    
             if tracking:
                 if runKLT == False:
                     old_image = self.robot.world.latest_image
                     old_image = np.array(old_image.raw_image.convert("L"))
-                    p0 = detector.detect(old_image)
-                    p0 = np.array([x.pt for x in p0], dtype=np.float32)
+                    #p0 = detector.detect(old_image)
+                    #p0 = np.array([x.pt for x in p0], dtype=np.float32)
                     runKLT = True
                 if runKLT == True:
                     new_image = self.robot.world.latest_image
                     new_image = np.array(new_image.raw_image.convert("L"))
-                    p0,p1,vel = featureTracking(old_image, new_image, p0)
-                    if p0 is not None:
-                        p0 = p1
-                        old_image = new_image
-                        print (i, 'KLT vel', vel)
-                    else:
-                        break
+                    #p0,p1,vel = featureTracking(old_image, new_image, p0)
+                    #if p0 is not None:
+                    #    p0 = p1
+                    #    old_image = new_image
+                    #    print (i, 'KLT vel', vel)
+                    #else:
+                    #    break
+            """
             err = robot_pos - loc
             if np.linalg.norm(err[:2]) < th:
                 break
@@ -193,10 +240,17 @@ class CoopsTrans:
     async def cozmo_program(self):
         self.robot.camera.image_stream_enabled = True
         i = 0
-        
-        transport, goal = await self.lookAroundBehavior() 
-        print (transport, self.robot.pose,goal) 
+        await self.custom_objects()        
+        transport, goal, tp, gp = await self.lookAroundBehavior()
+        if transport is None:             
+            transport, _, tp, _ = await self.lookAroundBehavior()
+        elif goal is None:
+            _, goal, _, gp = await self.lookAroundBehavior()
 
+        self.tp = tp
+        self.gp = gp
+        #print (transport,goal)
+        #return
         ##Robot pose
         robot_pos, rangle = self.get_pose(self.robot)
 
@@ -223,7 +277,7 @@ class CoopsTrans:
         
         await self.gotobehavior(vp, path=img, th=10)
         print ('gotobehavior for vp complte')
-
+        return
         ## Change the ange to 90
 
         await self.gotoangle(-np.pi/2, path=img)
