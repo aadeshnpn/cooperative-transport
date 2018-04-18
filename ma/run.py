@@ -79,14 +79,15 @@ async def gotoangle(robot, angle, path=None):
     while True:
         rangle = robot.pose.rotation.angle_z.radians            
         robot_pos = to_nppose(robot.pose.position.x_y_z, rangle)           
-
+        #print (robot)
         img = add_obj_path(path, robot_pos)
         cv2.imshow('path', img)#[:,:,::-1])
         ctrl.pos_update(robot_pos)
         val = ctrl.update_theta(angle)
         vr, vl = calc_wheel_velo(val)
         await robot.drive_wheels(vl, vr)
-        print ('angle error', val[2])
+        await asyncio.sleep(0.1)        
+        #print ('angle error', val[2])
         if np.linalg.norm(val[2]) < 0.1:
             break
         if cv2.waitKey(10) & 0xFF == ord('q'):
@@ -105,7 +106,8 @@ async def gotobehavior(robot, loc, path=None, th=35, tracking=False):
         i += 1
         ## Calc robot current pose
         rangle = robot.pose.rotation.angle_z.radians            
-        robot_pos = to_nppose(robot.pose.position.x_y_z, rangle)   
+        robot_pos = to_nppose(robot.pose.position.x_y_z, rangle)
+        print (i, robot_pos, t0)
         ctrl.pos_update(robot_pos)        
         ctrl.robot = robot
         ## Update the refrence object for the controller
@@ -119,9 +121,14 @@ async def gotobehavior(robot, loc, path=None, th=35, tracking=False):
         vr, vl = calc_wheel_velo(val)
         ## Send the velocity commands to the robot
         await robot.drive_wheels(vl, vr)
+        await asyncio.sleep(0.1)
+        #await robot.
         if path is not None:
             img = add_obj_path(path, robot_pos)        
             cv2.imshow('path', img)#[:,:,::-1])
+            old_image = robot.world.latest_image
+            old_image = np.array(old_image.raw_image.convert("L"))
+            #cv2.imshow('old',old_image)
         if tracking:
             if runKLT == False:
                 old_image = robot.world.latest_image
@@ -140,11 +147,11 @@ async def gotobehavior(robot, loc, path=None, th=35, tracking=False):
                 else:
                     break
         err = robot_pos - loc
-        print(i, err)
         if np.linalg.norm(err[:2]) < th:
             break
         if cv2.waitKey(10) & 0xFF == ord('q'):
             break
+    return 
 
 def alignPose(robot, loc, timeout=100):
     pass
@@ -170,7 +177,7 @@ def get_pose(objects):
     pose = to_nppose(objects.pose.position.x_y_z, angle)
     return (pose, angle)
 
-async def cozmo_program(robot: cozmo.robot.Robot):
+async def cozmo_program(robot):
     robot.camera.image_stream_enabled = True
     i = 0
     
