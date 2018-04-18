@@ -26,12 +26,17 @@ import cozmo
 import numpy as np
 from cozmo.util import degrees
 from cozmo.objects import CustomObject, CustomObjectMarkers, CustomObjectTypes
-from run import multi_agent
+from run import CoopsTrans
+
+
+multi_agent = False
 
 async def turn_left(sdk_conn):
     robot = await sdk_conn.wait_for_robot()
     cozmo.logger.info("multi agent")
-    await multi_agent(robot)
+    task = CoopsTrans(robot)
+    await task.multi_agent()
+    #await multi_agent(robot)
     """
     loc = np.ones((3,1))
     loc[1] = 100    
@@ -59,15 +64,16 @@ if __name__ == '__main__':
     # Connect to both robots
     try:
         conn1 = cozmo.connect_on_loop(loop)
-
-        conn2 = cozmo.connect_on_loop(loop)
+        if multi_agent:
+            conn2 = cozmo.connect_on_loop(loop)
     except cozmo.ConnectionError as e:
         sys.exit("A connection error occurred: %s" % e)
 
     # Run two independent coroutines concurrently, one on each connection
     task1 = asyncio.ensure_future(turn_left(conn1), loop=loop)
-    task2 = asyncio.ensure_future(turn_left(conn2), loop=loop)
-
+    if multi_agent:
+        task2 = asyncio.ensure_future(turn_left(conn2), loop=loop)
+        loop.run_until_complete(asyncio.gather(task1, task2))
+    else:
+        loop.run_until_complete(asyncio.gather(task1))
     # wait for both coroutines to complete before exiting the program
-    loop.run_until_complete(asyncio.gather(task1, task2))
-    #loop.run_until_complete(asyncio.gather(task1))

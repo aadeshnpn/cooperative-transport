@@ -131,7 +131,7 @@ def get_mc(p1, p2):
 
 def plan_virtualpoint(goal, item, robot):
     m, c = get_mc(goal, item)
-    vy = item[1] + 200
+    vy = item[1] + 250
     vx = ( vy - c ) / m
     #vx = robot[0] + 400
     #vy = m*vx + c
