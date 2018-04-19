@@ -24,6 +24,9 @@ class CoopsTrans:
         self.cvviewname = 'path'+str(self.rand)
         self.timage0 = None
         self.gimage0 = None
+        self.goal = None
+        self.transport = None
+
     ## Function related to CV
     async def custom_objects(self):
         # Defined the geometical attribute of the goal object
@@ -60,34 +63,48 @@ class CoopsTrans:
 
     async def avoid_obstacles(self):
         i = 0
-        while (len(self.tp) > 5 or len(self.gp) > 5):
+        #while (len(self.tp) > 5 or len(self.gp) > 5):
+        tp0 = self.tp
+        gp0 = self.gp
+
+        while len(tp0) > 15:
             curr_img = self.robot.world.latest_image
             curr_img = np.array(curr_img.raw_image.convert("L"))        
-            self.flow(self.tp, self.gp, curr_img)
-            print (len(self.tp), len(self.gp))
+            tp1, gp1 = self.flow(tp0, gp0, curr_img)
+            tp0 = tp1
+            print (len(tp0), len(gp0))
             await asyncio.sleep(0.1)
             cv2.imshow('track', curr_img)
             cv2.waitKey(10)
-            if i >=20:
-                break
-            await self.robot.drive_wheels(-5,5)
+            #if i >=20:
+            #    break
+            await self.robot.drive_wheels(-8,8)
+
+        #while i < 400:
+        #    i += 1
+        ##    print (i)
+        ##    await asyncio.sleep(0.1)                        
+        #    await self.robot.drive_wheels(10,10)
+
         
 
     def flow(self, tp, gp, curr_img):
         _, tp1 = featureTracking(self.timage0, curr_img, tp)
-        _, tg1 = featureTracking(self.gimage0, curr_img, gp)
+        #_, tg1 = featureTracking(self.gimage0, curr_img, gp)
         if tp1 is not None:
-            if len(tp1) > 2:
-                self.timage0 = curr_img
-                self.tp = tp1
-
-        if tg1 is not None:
-            if len(tg1) > 2:
-                self.gimage0 = curr_img
-                self.gp = tg1
+            if len(tp1) > 10:
+                #self.timage0 = curr_img
+                #self.tp = tp1
+                return tp1,gp
+            else:
+                return [1],[1]
+        #if tg1 is not None:
+        #    if len(tg1) > 2:
+        #        self.gimage0 = curr_img
+        #        self.gp = tg1
         #return tp, gp
 
-    async def lookAroundBehavior(self):
+    async def lookAroundBehavior(self, n):
         look_around = self.robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
 
         cube = None
@@ -98,10 +115,10 @@ class CoopsTrans:
             #cube = robot.world.wait_for_observed_light_cube(timeout=30)
 
             # This for for custom object
-            world_objects = await self.robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=40, include_existing=False)
+            world_objects = await self.robot.world.wait_until_observe_num_objects(n, object_type=CustomObject, timeout=40, include_existing=False)
             #global goal, transport
             for item in world_objects:
-                #print(dir(item))
+                #print(item)
                 #print (item.last_observed_image_box)
                 area = item.x_size_mm * item.y_size_mm * item.z_size_mm #180000
                 if area == 2100000:
@@ -112,7 +129,6 @@ class CoopsTrans:
                     t_points,_ = compute_features(box, img)
                     self.timage0 = img
                 else:
-                    goal = item
                     goal = item
                     box = goal.last_observed_image_box
                     img = self.robot.world.latest_image
@@ -219,18 +235,20 @@ class CoopsTrans:
 
 
     def secondphase(self, path):
-        self.custom_objects()
-        look_around = self.robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
+        #self.custom_objects()
+        #look_around = self.robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
         try:    
-            transport = self.robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)
-            look_around.stop()        
-            object_pos, cangle = self.get_pose(transport[0])
-            self.gotobehavior(object_pos, path, th=60, tracking=True)
+            #transport = self.robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)
+            #look_around.stop()        
+            #object_pos, cangle = self.get_pose(transport[0])
+            goal_pos, gangle = self.get_pose(self.goal)
+            self.gotobehavior(goal_pos, path, th=70, tracking=True)
         except asyncio.TimeoutError:
             print ("Couldn't relocate the transport oject. Stopping")
             pass
         finally:
-            look_around.stop()
+            #look_around.stop()
+            pass
 
 
     def get_pose(self, objects):
@@ -242,14 +260,18 @@ class CoopsTrans:
         self.robot.camera.image_stream_enabled = True
         i = 0
         await self.custom_objects()        
-        transport, goal, tp, gp = await self.lookAroundBehavior()
+        transport, goal, tp, gp = await self.lookAroundBehavior(1)
         if transport is None:             
-            transport, _, tp, _ = await self.lookAroundBehavior()
+            transport, _, tp, _ = await self.lookAroundBehavior(2)
         elif goal is None:
-            _, goal, _, gp = await self.lookAroundBehavior()
+            _, goal, _, gp = await self.lookAroundBehavior(2)
 
         self.tp = tp
         self.gp = gp
+        cv2.imshow('tobject', self.timage0)
+        cv2.waitKey(900)
+        self.transport = transport
+        self.goal = goal
         #print (transport,goal)
         #return
         ##Robot pose
@@ -276,18 +298,19 @@ class CoopsTrans:
         img = visualize_path(goal_pos, object_pos, vp, robot_pos)
         cv2.imwrite('path.jpg',img)
         
-        await self.gotobehavior(vp, path=img, th=10)
+        await self.gotobehavior(vp, path=img, th=30)
         print ('gotobehavior for vp complte')
-        return
+        #return
         ## Change the ange to 90
 
         await self.gotoangle(-np.pi/2, path=img)
         print ('gotoangle behavior completed')
         self.robot.stop_all_motors()    
-        return
+        #return
 
         #print ('Second phase starting')
-        #secondphase(robot, path=img)
+        #self.secondphase(path=img)
+        #self.robot.stop_all_motors()        
         #print ('second phase end')
         #return
 

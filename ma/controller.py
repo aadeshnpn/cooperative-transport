@@ -38,7 +38,7 @@ def featureTracking(image_ref, image_cur, px_ref):
 
 
 class PIctrl:
-    def __init__(self, kp = 5, ki = 0.01, kd=0.01, integratorb=(-200, 200), actual=(0,0,0)):
+    def __init__(self, kp = 8, ki = 0.01, kd=0.01, integratorb=(-200, 200), actual=(0,0,0)):
         self.kp = kp
         self.ki = ki
         self.kd = kd
@@ -132,13 +132,14 @@ def get_mc(p1, p2):
 
 def plan_virtualpoint(goal, item, robot):
     m, c = get_mc(goal, item)
-    vy = item[1] + 250
+    add = np.random.choice([40,60,80,100])
+    vy = item[1] + 250 + add
     vx = ( vy - c ) / m
     #vx = robot[0] + 400
     #vy = m*vx + c
     #vx = goal[0] - 200
     #vy = goal[1] - 200
-    vp = (vx+200, vy)
+    vp = (vx+200+add, vy)
     return vp
 
 def cnvtcord(p):
@@ -197,11 +198,11 @@ def compute_features(box, img):
     cv2.rectangle(img,(x1,y1),(x2,y2),(255,255,0),5)
 
     mask_image = img.copy()
-    mask_image[:,:] = 255
+    #mask_image[:,:] = 255
     #start_point = (x1, y1)
     #end_point = (x2, y2)
     
-    mask_image[y2:y2+h, x1:x1+w] = img[y2:y2+h, x1:x1+w]
+    #mask_image[y2:y2+h, x1:x1+w] = img[y2:y2+h, x1:x1+w]
     detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
     p0 = detector.detect(mask_image)
     p0 = np.array([x.pt for x in p0], dtype=np.float32)
