@@ -30,7 +30,7 @@ from run import CoopsTrans
 from controller import visualize_objects, compute_features
 import cv2
 
-multi_agent = True
+multi_agent = False
 
 async def test_goal(robot):
     task = CoopsTrans(robot)
@@ -53,15 +53,31 @@ async def test_goal(robot):
     #if cv2.waitKey(9000) & 0xFF == ord('q'):
     #    return
     #pass
-    return robot.pose.position
+    return task
 
-async def turn_left(sdk_conn):
+async def ct_2(robot,task):
+    print ('test goal1')
+    """
+    look_around = robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
+    try:
+        world_objects = await robot.world.wait_until_observe_num_objects(1, object_type=CustomObject, timeout=30, include_existing=False)  
+        print (world_objects)  
+    except:
+        look_around.stop()
+    #robot.LookAroundInPlace()
+    """
+    pass
+
+async def ct_1(sdk_conn):
     robot = await sdk_conn.wait_for_robot()
     cozmo.logger.info("multi agent")
+    #task = await test_goal(robot)
+    #return task, robot
     task = CoopsTrans(robot)
-    task.robot.camera.image_stream_enabled = True    
+    #task.robot.camera.image_stream_enabled = True    
     await task.multi_agent()
     #await multi_agent(robot)
+    return task, robot
     """
     item, goal = await task.lookAroundBehavior()
     task.robot.stop_all_motors()
@@ -126,12 +142,20 @@ if __name__ == '__main__':
         sys.exit("A connection error occurred: %s" % e)
 
     # Run two independent coroutines concurrently, one on each connection
-    task1 = asyncio.ensure_future(turn_left(conn1), loop=loop)
+    task1 = asyncio.ensure_future(ct_1(conn1), loop=loop)
+
     if multi_agent:
         #sleep(50)
-        task2 = asyncio.ensure_future(turn_left(conn2), loop=loop)
+        task2 = asyncio.ensure_future(ct_1(conn2), loop=loop)
         ret = loop.run_until_complete(asyncio.gather(task1, task2))
         print (ret)
     else:
-        loop.run_until_complete(asyncio.gather(task1))
+        val = loop.run_until_complete(asyncio.gather(task1))
+        print (val)        
+        task, robot = val[0][0], val[0][1]
+
+        tasklast = asyncio.ensure_future(ct_2(robot, task), loop=loop)
+        loop.run_until_complete(asyncio.gather(tasklast))
+
+
     # wait for both coroutines to complete before exiting the program
