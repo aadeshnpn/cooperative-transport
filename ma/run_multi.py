@@ -30,23 +30,46 @@ from run import CoopsTrans
 from controller import visualize_objects, compute_features
 import cv2
 
-multi_agent = True
+multi_agent = False
 
-async def test_goal(robot):
+async def test_goal(conn):
+    robot = await conn.wait_for_robot()    
     task = CoopsTrans(robot)
     fixed_goal = await task.fixed_goal_object(100, -100, 0)
     #print (task.robot.pose)
     #item,_  = await task.lookAroundBehavior()
-    print (robot.robot_id)
+    print (robot.robot_id, robot.pose)
     #print ('item',item)
-    print ('fixed', fixed_goal.pose)
+    #print ('fixed', fixed_goal.pose)
     #print (task.robot.pose = item.pose)
-    print ('robot',task.robot.pose)
-    new_pose = task.robot.pose.define_pose_relative_this(fixed_goal.pose)
-    await asyncio.sleep(0.1)    
+    #print ('robot',task.robot.pose)
+    #new_pose = task.robot.pose.define_pose_relative_this(fixed_goal.pose)
+
     #print(dir(robot))
-    task.robot._pose = new_pose
-    print ('after robot', task.robot.pose.position)
+    #task.robot._pose = new_pose
+    i = 0
+    old_pose = robot.pose
+    #old_acc = robot.accelerometer
+    #old_gyro = robot.gyro
+
+    while i < 100:
+        i+=1
+        await asyncio.sleep(0.1)            
+        await robot.drive_wheels(10,10)
+    #await asyncio.sleep(0.1)                    
+    print (old_pose, robot.pose)
+    #robot._pose = old_pose    
+    #robot._accelerometer = old_acc
+    #robot._gyro = old_gyro
+
+    print ('robot pose', robot.pose)
+    i=0
+    while i < 100:
+        i+=1
+        await asyncio.sleep(0.1)            
+        await robot.drive_wheels(10,10)
+    print (robot.pose)    
+    #print ('after robot', task.robot.pose.position)
     #print ('after fixed', fixed_goal.pose.position)   
     #visualize_objects(robot)
     #cv2.imshow(self.cvviewname, img)
@@ -68,6 +91,8 @@ async def ct_2(task):
         look_around.stop()
     #robot.LookAroundInPlace()
     """
+#async def ct_3(robot):
+#    print (robot.pose)
 
 
 async def ct_1(sdk_conn):
@@ -144,7 +169,8 @@ if __name__ == '__main__':
         sys.exit("A connection error occurred: %s" % e)
 
     # Run two independent coroutines concurrently, one on each connection
-    task1 = asyncio.ensure_future(ct_1(conn1), loop=loop)
+    #task1 = asyncio.ensure_future(ct_1(conn1), loop=loop)
+    task1 = asyncio.ensure_future(test_goal(conn1), loop=loop)
 
     if multi_agent:
         #sleep(50)
@@ -158,12 +184,14 @@ if __name__ == '__main__':
         #print (ret)
         print ('Everything done')
     else:
+        val = loop.run_until_complete(asyncio.gather(task1))        
+        """
         val = loop.run_until_complete(asyncio.gather(task1))
         print (val)        
         task, robot = val[0][0], val[0][1]
 
         tasklast = asyncio.ensure_future(ct_2(task), loop=loop)
         loop.run_until_complete(asyncio.gather(tasklast))
-
+        """
 
     # wait for both coroutines to complete before exiting the program

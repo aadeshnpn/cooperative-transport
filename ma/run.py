@@ -14,6 +14,7 @@ from cozmo.objects import CustomObject, CustomObjectMarkers, CustomObjectTypes
 
 #np.array(image.raw_image.convert("L"))
 kMinNumFeature = 20
+color = np.random.randint(0,255,(300,3))
 #goal = None
 #transport = None
 
@@ -73,9 +74,9 @@ class CoopsTrans:
             curr_img = np.array(curr_img.raw_image.convert("L"))        
             tp1, gp1 = self.flow(tp0, gp0, curr_img)
             tp0 = tp1
-            print (len(tp0), len(gp0))
+            #print (len(tp0), len(gp0))
             await asyncio.sleep(0.1)
-            cv2.imshow('track', curr_img)
+            #cv2.imshow('track', curr_img)
             cv2.waitKey(10)
             #if i >=20:
             #    break
@@ -90,7 +91,7 @@ class CoopsTrans:
         
 
     def flow(self, tp, gp, curr_img):
-        _, tp1 = featureTracking(self.timage0, curr_img, tp)
+        _, tp1, _ = featureTracking(self.timage0, curr_img, tp)
         #_, tg1 = featureTracking(self.gimage0, curr_img, gp)
         if tp1 is not None:
             if len(tp1) > 10:
@@ -174,16 +175,65 @@ class CoopsTrans:
         #robot_pos, rangle = get_pose(robot)
         i = 0
         t0 = time.time() 
-        runKLT = False   
-        #detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+        #runKLT = False   
+        robot_stuck = False
+        detector = cv2.FastFeatureDetector_create(threshold=25, nonmaxSuppression=True)
+        old_pose = self.robot.pose        
+        old_image = self.robot.world.latest_image
+        old_image = np.array(old_image.raw_image.convert("L"))
+        p0 = detector.detect(old_image)
+        p0 = np.array([x.pt for x in p0], dtype=np.float32)
+        runKLT = True        
         while True:
             i += 1
             ## Calc robot current pose
             rangle = self.robot.pose.rotation.angle_z.radians            
             robot_pos = to_nppose(self.robot.pose.position.x_y_z, rangle)
-            print (i, robot_pos, t0)
+            #print (i, robot_pos, t0)
             ctrl.pos_update(robot_pos)        
             ctrl.robot = self.robot
+            if robot_stuck:
+                self.robot._pose = old_pose
+            else:
+                old_pose = self.robot.pose
+            # Traking true make sure the position is not changed if it is stuck
+            await asyncio.sleep(0.1)            
+            if tracking:
+                #if runKLT == False:
+
+                #    continue
+                if runKLT == True:
+                    new_image = self.robot.world.latest_image
+                    new_image = np.array(new_image.raw_image.convert("L"))
+                    p0,p1,vel = featureTracking(old_image, new_image, p0)
+                    try:
+                        if (old_image == new_image).all():
+                            print ('optical flow',i, vel)
+                        # draw the tracks
+                        for i,(new,old) in enumerate(zip(p0,p1)):
+                            a,b = new.ravel()
+                            #c,d = old.ravel()
+                            #mask = cv2.line(mask, (a,b),(c,d), color[i].tolist(), 2)
+                            draw = cv2.circle(new_image,(a,b),5,color[i].tolist(),-1)
+                        #img = cv2.add(frame,mask)
+                        cv2.imshow('of', draw)
+                        #print ('acclerometer',self.robot.accelerometer)
+                        if vel < 0.2 and self.robot.are_wheels_moving is True:
+                            print ("The robot is stuck")
+                            robot_stuck = True
+                        old_image = np.copy(new_image)
+                        p0 = p1
+                        #if len(p0) < 5:
+                    except:
+                        p0 = detector.detect(old_image)
+                        p0 = np.array([x.pt for x in p0], dtype=np.float32)
+                    #if p0 is not None:
+                    #    p0 = p1
+                    #    old_image = new_image
+                    #    print (i, 'KLT vel', vel)
+                    #else:
+                    #    break
+
             ## Update the refrence object for the controller
             ctrl.ref_point = loc
             ## Run the PID controller
@@ -195,7 +245,7 @@ class CoopsTrans:
             vr, vl = calc_wheel_velo(val)
             ## Send the velocity commands to the robot
             await self.robot.drive_wheels(vl, vr)
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.1)            
             if not tracking:
                 await self.avoid_obstacles()
             #for 
@@ -206,25 +256,8 @@ class CoopsTrans:
                 old_image = self.robot.world.latest_image
                 old_image = np.array(old_image.raw_image.convert("L"))
                 #cv2.imshow('old',old_image)\
-            """    
-            if tracking:
-                if runKLT == False:
-                    old_image = self.robot.world.latest_image
-                    old_image = np.array(old_image.raw_image.convert("L"))
-                    #p0 = detector.detect(old_image)
-                    #p0 = np.array([x.pt for x in p0], dtype=np.float32)
-                    runKLT = True
-                if runKLT == True:
-                    new_image = self.robot.world.latest_image
-                    new_image = np.array(new_image.raw_image.convert("L"))
-                    #p0,p1,vel = featureTracking(old_image, new_image, p0)
-                    #if p0 is not None:
-                    #    p0 = p1
-                    #    old_image = new_image
-                    #    print (i, 'KLT vel', vel)
-                    #else:
-                    #    break
-            """
+
+            #"""
             err = robot_pos - loc
             if np.linalg.norm(err[:2]) < th:
                 break
@@ -278,8 +311,8 @@ class CoopsTrans:
 
         self.tp = tp
         self.gp = gp
-        cv2.imshow('tobject', self.timage0)
-        cv2.waitKey(900)
+        #cv2.imshow('tobject', self.timage0)
+        #xcv2.waitKey(900)
         self.transport = transport
         self.goal = goal
         #print (transport,goal)
@@ -308,7 +341,7 @@ class CoopsTrans:
         img = visualize_path(goal_pos, object_pos, vp, robot_pos)
         cv2.imwrite('path.jpg',img)
         
-        await self.gotobehavior(vp, path=img, th=30)
+        await self.gotobehavior(vp, path=img, th=50)
         print ('gotobehavior for vp complte')
         #return
         ## Change the ange to 90

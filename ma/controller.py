@@ -24,12 +24,13 @@ def featureTracking(image_ref, image_cur, px_ref):
         kp1 = px_ref[st == 1]
         kp2 = kp2[st == 1]
 
-        #u = (kp2 - kp1)
-        #vel = np.linalg.norm(u)
+        u = (kp2 - kp1)
+        vel = np.linalg.norm(u)
         #return kp1, kp2, vel
-        return kp1, kp2
+        #print ('of', vel)
+        return kp1, kp2, vel
     except AttributeError:
-        return None, None
+        return None, None, None
 
 ##def get_rt(image):
 #    corners, ids, rejectedImgPoints = aruco.detectMarkers(image, aruco_dict, parameters=parameters)
