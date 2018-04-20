@@ -183,19 +183,33 @@ class CoopsTrans:
         old_image = np.array(old_image.raw_image.convert("L"))
         p0 = detector.detect(old_image)
         p0 = np.array([x.pt for x in p0], dtype=np.float32)
-        runKLT = True        
+        runKLT = True     
+        error = np.zeros((3,1))
         while True:
             i += 1
             ## Calc robot current pose
-            rangle = self.robot.pose.rotation.angle_z.radians            
-            robot_pos = to_nppose(self.robot.pose.position.x_y_z, rangle)
+            #rangle = self.robot.pose.rotation.angle_z.radians            
+            #robot_pos = to_nppose(self.robot.pose.position.x_y_z, rangle)
+            rangle = old_pose.rotation.angle_z.radians
+            robot_pos = to_nppose(old_pose.position.x_y_z, rangle)
             #print (i, robot_pos, t0)
-            ctrl.pos_update(robot_pos)        
             ctrl.robot = self.robot
             if robot_stuck:
-                self.robot._pose = old_pose
+                #self.robot._pose = old_pose
+                print ('not updateing robot pos')
+                tempangle = self.robot.pose.rotation.angle_z.radians
+                temp_pos = to_nppose(self.robot.pose.position.x_y_z, tempangle)
+                error = temp_pos - robot_pos
             else:
-                old_pose = self.robot.pose
+                #old_pose = self.robot.pose - error
+                rangle = self.robot.pose.rotation.angle_z.radians
+                robot_pos = to_nppose(self.robot.pose.position.x_y_z, rangle)
+                corr_pos = robot_pos - error
+                x = corr_pos[0][0]; y = corr_pos[1][0]; z = corr_pos[2][0]
+                old_pose = cozmo.util.Pose(x,y,0,angle_z=radians(z))
+                error = np.zeros((3,1))
+                #old_pose 
+            ctrl.pos_update(robot_pos)                
             # Traking true make sure the position is not changed if it is stuck
             await asyncio.sleep(0.1)            
             if tracking:

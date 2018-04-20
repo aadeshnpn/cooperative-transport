@@ -30,7 +30,7 @@ from run import CoopsTrans
 from controller import visualize_objects, compute_features
 import cv2
 
-multi_agent = False
+multi_agent = True
 
 async def test_goal(conn):
     robot = await conn.wait_for_robot()    
@@ -169,8 +169,8 @@ if __name__ == '__main__':
         sys.exit("A connection error occurred: %s" % e)
 
     # Run two independent coroutines concurrently, one on each connection
-    #task1 = asyncio.ensure_future(ct_1(conn1), loop=loop)
-    task1 = asyncio.ensure_future(test_goal(conn1), loop=loop)
+    task1 = asyncio.ensure_future(ct_1(conn1), loop=loop)
+    #task1 = asyncio.ensure_future(test_goal(conn1), loop=loop)
 
     if multi_agent:
         #sleep(50)
@@ -184,14 +184,14 @@ if __name__ == '__main__':
         #print (ret)
         print ('Everything done')
     else:
-        val = loop.run_until_complete(asyncio.gather(task1))        
-        """
+        #val = loop.run_until_complete(asyncio.gather(task1))        
+        #"""
         val = loop.run_until_complete(asyncio.gather(task1))
         print (val)        
         task, robot = val[0][0], val[0][1]
 
         tasklast = asyncio.ensure_future(ct_2(task), loop=loop)
         loop.run_until_complete(asyncio.gather(tasklast))
-        """
+        #"""
 
     # wait for both coroutines to complete before exiting the program

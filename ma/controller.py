@@ -18,8 +18,8 @@ lk_params = dict(winSize  = (21, 21),
                  criteria = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 30, 0.01))
 
 def featureTracking(image_ref, image_cur, px_ref):
-    kp2, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, px_ref, None, **lk_params)  #shape: [k,2] [k,1] [k,1]
     try:
+        kp2, st, err = cv2.calcOpticalFlowPyrLK(image_ref, image_cur, px_ref, None, **lk_params)  #shape: [k,2] [k,1] [k,1]        
         st = st.reshape(st.shape[0])
         kp1 = px_ref[st == 1]
         kp2 = kp2[st == 1]
@@ -29,7 +29,7 @@ def featureTracking(image_ref, image_cur, px_ref):
         #return kp1, kp2, vel
         #print ('of', vel)
         return kp1, kp2, vel
-    except AttributeError:
+    except: #(AttributeError, cv2.error):
         return None, None, None
 
 ##def get_rt(image):
