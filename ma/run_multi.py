@@ -30,7 +30,7 @@ from run import CoopsTrans
 from controller import visualize_objects, compute_features
 import cv2
 
-multi_agent = False
+multi_agent = True
 
 async def test_goal(robot):
     task = CoopsTrans(robot)
@@ -55,8 +55,10 @@ async def test_goal(robot):
     #pass
     return task
 
-async def ct_2(robot,task):
-    print ('test goal1')
+
+async def ct_2(task):
+    await task.secondphase() 
+    print ('Second phase done')
     """
     look_around = robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
     try:
@@ -66,7 +68,7 @@ async def ct_2(robot,task):
         look_around.stop()
     #robot.LookAroundInPlace()
     """
-    pass
+
 
 async def ct_1(sdk_conn):
     robot = await sdk_conn.wait_for_robot()
@@ -147,14 +149,20 @@ if __name__ == '__main__':
     if multi_agent:
         #sleep(50)
         task2 = asyncio.ensure_future(ct_1(conn2), loop=loop)
-        ret = loop.run_until_complete(asyncio.gather(task1, task2))
-        print (ret)
+        val = loop.run_until_complete(asyncio.gather(task1, task2))
+        print ('1st task completed', val)
+        task11, _, task22, _= val[0][0], val[0][1], val[1][0], val[1][1]
+        tasklast1 = asyncio.ensure_future(ct_2(task11), loop=loop)
+        tasklast2 = asyncio.ensure_future(ct_2(task22), loop=loop)        
+        loop.run_until_complete(asyncio.gather(tasklast1,tasklast2))
+        #print (ret)
+        print ('Everything done')
     else:
         val = loop.run_until_complete(asyncio.gather(task1))
         print (val)        
         task, robot = val[0][0], val[0][1]
 
-        tasklast = asyncio.ensure_future(ct_2(robot, task), loop=loop)
+        tasklast = asyncio.ensure_future(ct_2(task), loop=loop)
         loop.run_until_complete(asyncio.gather(tasklast))
 
 

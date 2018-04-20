@@ -26,6 +26,7 @@ class CoopsTrans:
         self.gimage0 = None
         self.goal = None
         self.transport = None
+        self.transport_rand = [-10, 0, 10]
 
     ## Function related to CV
     async def custom_objects(self):
@@ -195,7 +196,8 @@ class CoopsTrans:
             ## Send the velocity commands to the robot
             await self.robot.drive_wheels(vl, vr)
             await asyncio.sleep(0.1)
-            await self.avoid_obstacles()
+            if not tracking:
+                await self.avoid_obstacles()
             #for 
             #await robot.
             if path is not None:
@@ -234,7 +236,7 @@ class CoopsTrans:
         pass
 
 
-    def secondphase(self, path):
+    async def secondphase(self):
         #self.custom_objects()
         #look_around = self.robot.start_behavior(cozmo.behavior.BehaviorTypes.LookAroundInPlace)
         try:    
@@ -242,7 +244,15 @@ class CoopsTrans:
             #look_around.stop()        
             #object_pos, cangle = self.get_pose(transport[0])
             goal_pos, gangle = self.get_pose(self.goal)
-            self.gotobehavior(goal_pos, path, th=70, tracking=True)
+            transport_pos, tangle = self.get_pose(self.transport)  
+            transport_pos[0][0] = transport_pos[0][0] + np.random.choice(self.transport_rand)
+            transport_pos[1][0] = transport_pos[1][0] + np.random.choice(self.transport_rand)
+            print ("Starting second phase")
+            await self.gotobehavior(transport_pos, self.path, th=100, tracking=True)
+            print ("Go to goal done")
+            await self.gotobehavior(goal_pos, self.path, th=70, tracking=True)            
+            self.robot.stop_all_motors()
+            print ("Reached to goal")
         except asyncio.TimeoutError:
             print ("Couldn't relocate the transport oject. Stopping")
             pass
@@ -306,6 +316,7 @@ class CoopsTrans:
         await self.gotoangle(-np.pi/2, path=img)
         print ('gotoangle behavior completed')
         self.robot.stop_all_motors()    
+        self.path = img
         #return
 
         #print ('Second phase starting')
