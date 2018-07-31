@@ -34,6 +34,8 @@ This scirpt will start async connection with both cozmo robot via the devices an
 
 [![Cooperative Transport with Cozmo](https://i.ytimg.com/vi/WvW2b_O350E/hqdefault.jpg)](https://www.youtube.com/watch?v=WvW2b_O350E "Cooperative Transport")
 
+## Paper
+[Cooperative Transport in Mobile Robots](cooperative-transport-mobile.pdf)
 ## Contact
 
 If you find this demo cool and would like to talk more about it, just send me an email :)
